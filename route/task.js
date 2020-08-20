@@ -1,109 +1,78 @@
 const express = require("express");
+const mid_auth = require('../middleware/auth');
 const { type } = require("os");
+const mongoose = require('mongoose');
 const task_model = require("../model/task");
 const Joi = require("joi");
 const bodyParser = require('body-parser');
 const router = express.Router();
-// express().use(express.json());
 
 
-express().use(bodyParser.urlencoded({extended: true}))
-express().use(bodyParser.json);
+express().use(bodyParser.urlencoded( { extended: true }));
+express().use(bodyParser.json());
 
-const TaskModel = task_model.mongoose.model('task', task_model.taskSchema);
+const TaskModel = task_model.mongoose.mongoose.model('tasks', task_model.taskSchema);
 
 //Handle post request
-router.post("/", (req, res) => {
-  createTask(req.body, res);
+router.post("/", mid_auth, async (req, res) => {
+  const task = new TaskModel({
+    name: req.body.name,
+    description: req.body.description
+  });
+
+  //Save Task
+  await task.save()
+      .then(res.status(200).send('New Task Added'))
+      .catch(exception => {
+        for (let field in exception.errors) {
+          res.status(400).send(exception.errors[field].message);
+        }
+      });
 });
 
-router.get("/", (req, res) => {
-  getAllCourses(req, res).then(r => console.log('Task Sent'));
-});
-
-router.get("/:name", (req, res) => {
-  getTask(req)
-      .then(result => res.status(200).send(result))
-      .catch(err => res.status(404).send(`There is no Task with ${req.params.name}`));
-});
-
-router.put("/:id", (req, res) => {
-  updateTask(req, res)
-      .then(result => res.status(200).send('Task has been updated'))
-      .catch(err => res.status(404).send('Error updating Task'))
-});
-
-router.delete("/:id", (req, res) => {
-  removeTask(req)
-})
-
-async function getAllCourses(req, res) {
-  return TaskModel.find()
+router.get("/", async (req, res) => {
+  TaskModel.find()
       .sort('-name')
       .select('name')
       .then(tasks => { res.status(200).send(tasks) })
       .catch(err => res.status(404).send('Task is Empty', err));
+});
 
-  // return tasks;
-}
+router.get("/:name", async (req, res) => {
+  await TaskModel.find({ name: req.params.name })
+    .then(result => res.status(200).send(result))
+    .catch(err => res.status(404).send(`There is no Task with ${req.params.name}`));
+});
 
-async function createTask(body, res) {
-  body.forEach((element, index) => {
+router.put("/:id", async (req, res) => {
+  let name = req.body.name;
+  let description = req.body.description;
 
-    //Add new Task to model
-    const task = new TaskModel({
-      name: element.name,
-      description: element.description
-    });
+  //Get the Task to update
+  const taskToUpdate = await TaskModel.findById(req.params.id);
 
-    saveTask(task)
-        .catch(exception => {
-      for (let field in exception.errors) {
-        res.status(400).send(exception.errors[field].message);
-      }
-    });
-  });
-}
+  //Check if task Exist
+  if (!taskToUpdate) return res.status(404).send(`Task with the id of ${req.params.id} found`);
 
-async function saveTask(task) {
-  await task.save();
-}
-
-async function getTask(req) {
-  return await TaskModel.find({name: req.params.name});
-}
-
-async function updateTask(req, res) {
-  let name = null;
-  let description = null;
-  const taskToUpDate = await TaskModel.findById(req.params.id);
-
-  if (!taskToUpDate)
-    res.status(404).send('Task not found!');
-
-
-  //Parse the JSON and get the Task Name and Description
-  await req.body.forEach((element, index) => {
-    name = element.name != null ? element.name : taskToUpDate.name;
-    description = element.description != null ? element.description : taskToUpDate.description;
-  });
-
-
-  //Set the update values and Update
-  taskToUpDate.set( {
-    name: name,
-    description: description ,
+  //Check for changes and Update Task
+  taskToUpdate.set({
+    name: name != null ? name : taskToUpdate.name,
+    description: description != null ? description : taskToUpdate.description,
     updated_at: Date.now()
-  });
-  await taskToUpDate.save().catch(err => {
-    for (let field in err.errors) {
-      res.status(400).send(err.errors[field].message);
-    }
-  });
-}
+  })
 
-async function removeTask(req) {
+  await taskToUpdate.save()
+    .then(result => res.status(200).send('Task has been updated'))
+      .catch(err => {
+        for (let field in err.errors) {
+          res.status(400).send(err.errors[field].message);
+        }
+      });
+});
+
+router.delete("/:id", async (req, res) => {
   await TaskModel.findByIdAndRemove(req.params.id);
-}
+});
+
 
 module.exports.router = router;

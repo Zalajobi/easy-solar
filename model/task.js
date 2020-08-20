@@ -1,14 +1,8 @@
-const mongoose = require("mongoose");
-
-mongoose
-    .connect("mongodb://localhost:27018/easy-solar", {
-        useNewUrlParser: true
-    })
-    .catch((err) => console.error("Could not connect to mongoDB", err));
-
+// const mongoose = require("mongoose");
+const mongoose = require('../connection')
 
 //set the model of our Task
-const taskSchema = mongoose.Schema({
+const taskSchema = mongoose.mongoose.Schema({
     name: {
         type: String,
         required: [true, 'The Name of the Task is required'],
